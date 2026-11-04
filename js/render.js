@@ -14,7 +14,8 @@ class Renderer {
   }
 
   resize() {
-    const vw = window.innerWidth, vh = window.innerHeight;
+    // a minimized or hidden window can report 0x0; keep a usable minimum size so drawing never breaks
+    const vw = Math.max(200, window.innerWidth || 0), vh = Math.max(400, window.innerHeight || 0);
     const s = Math.min(vw / LW, vh / LH);
     this.scale = s;
     const dpr = Math.min(2.5, window.devicePixelRatio || 1);
