@@ -2,6 +2,7 @@
 // Procedural vector art for every troop. Art space: 1 tile = 32px, feet at (0,0), up is -y.
 
 const OUT = '#231d2c';
+const LOOP = Math.PI * 2 / 1.2; // creature animations repeat every 1.2s
 const TEAM_COLORS = [
   { main: '#3b7fe0', light: '#7cb6ff', dark: '#1f4c99', glow: '#9fd0ff' },
   { main: '#e0443c', light: '#ff8a7a', dark: '#93231f', glow: '#ffb3a8' },
@@ -460,7 +461,7 @@ const Art = (() => {
 
   const CREATURES = {
     bat(c, P) {
-      const T = P.T, f = Math.sin(P.t * 22 + P.seed);
+      const T = P.T, f = Math.sin(P.t * LOOP * 4 + P.seed);
       c.save(); c.translate(0, -26);
       wingPair(c, 13, 8, f, lg(c, 0, -8, 0, 6, '#5a4870', '#2b2238'));
       ell(c, 0, 0, 5, 5.5); fs(c, rg(c, 0, 0, 6, '#6b5a84', '#2f2540'), 1.2);
@@ -470,18 +471,18 @@ const Art = (() => {
       c.restore();
     },
     wisp(c, P) {
-      const T = P.T, b = Math.sin(P.t * 4 + P.seed) * 1.5;
+      const T = P.T, b = Math.sin(P.t * LOOP + P.seed) * 1.5;
       c.save(); c.translate(0, -24 + b);
       c.save(); c.globalCompositeOperation = 'lighter';
       const g = c.createRadialGradient(0, 0, 0, 0, 0, 14); g.addColorStop(0, rgba(T.glow, 0.7)); g.addColorStop(1, rgba(T.glow, 0)); c.fillStyle = g; ell(c, 0, 0, 14, 14); c.fill();
       c.restore();
-      c.beginPath(); c.moveTo(-6, 0); c.quadraticCurveTo(-4, 10, 2 + Math.sin(P.t * 8) * 2, 13); c.quadraticCurveTo(3, 7, 6, 0); c.closePath(); fs(c, rgba(T.light, 0.8), 0);
+      c.beginPath(); c.moveTo(-6, 0); c.quadraticCurveTo(-4, 10, 2 + Math.sin(P.t * LOOP * 2) * 2, 13); c.quadraticCurveTo(3, 7, 6, 0); c.closePath(); fs(c, rgba(T.light, 0.8), 0);
       ell(c, 0, 0, 7, 7); fs(c, rg(c, 0, 0, 7, '#ffffff', T.light), 1.2, T.dark);
       for (const s of [-1, 1]) { ell(c, s * 2.4, -0.5, 1.2, 1.7); c.fillStyle = T.dark; c.fill(); }
       c.restore();
     },
     gargoyle(c, P) {
-      const T = P.T, f = Math.sin(P.t * 16 + P.seed);
+      const T = P.T, f = Math.sin(P.t * LOOP * 3 + P.seed);
       c.save(); c.translate(0, -25);
       wingPair(c, 12, 7, f, lg(c, 0, -7, 0, 5, '#8e8f99', '#55565f'));
       ell(c, 0, 2, 5, 6); fs(c, rg(c, 0, 2, 6, '#a3a4ad', '#5f606a'), 1.2);
@@ -492,12 +493,12 @@ const Art = (() => {
       c.restore();
     },
     drake(c, P, o) {
-      const T = P.T, f = Math.sin(P.t * 9 + P.seed);
+      const T = P.T, f = Math.sin(P.t * LOOP * 2 + P.seed);
       const big = o && o.wyrm;
       c.save(); c.translate(0, big ? -34 : -30); if (P.back) c.scale(1, 1);
       const bodyC = big ? '#5a3a34' : '#5fa84a', bellyC = big ? '#ff8a3a' : '#e8d27a';
       // tail
-      c.beginPath(); c.moveTo(-2, 6); c.quadraticCurveTo(-4 + Math.sin(P.t * 3) * 3, 16, 3, 20); c.quadraticCurveTo(0, 14, 3, 6); c.closePath(); fs(c, bodyC, 1.1);
+      c.beginPath(); c.moveTo(-2, 6); c.quadraticCurveTo(-4 + Math.sin(P.t * LOOP) * 3, 16, 3, 20); c.quadraticCurveTo(0, 14, 3, 6); c.closePath(); fs(c, bodyC, 1.1);
       wingPair(c, big ? 19 : 15, big ? 11 : 9, f, lg(c, 0, -9, 0, 8, big ? '#ff9a4a' : '#8fd46a', big ? '#9a2a1a' : '#3f7a34'));
       ell(c, 0, 3, big ? 8 : 6.5, big ? 9 : 7.5); fs(c, rg(c, 0, 3, 8, shade(bodyC, 0.25), shade(bodyC, -0.2)), 1.2);
       ell(c, 0, 5, big ? 4.5 : 3.6, big ? 6 : 5); fs(c, bellyC, 0.8);
@@ -512,7 +513,7 @@ const Art = (() => {
     },
     hound(c, P, o) {
       const T = P.T, pup = o && o.pup, s = pup ? 0.45 : 1;
-      const f = Math.sin(P.t * (pup ? 14 : 5) + P.seed);
+      const f = Math.sin(P.t * LOOP * (pup ? 3 : 1) + P.seed);
       c.save(); c.translate(0, pup ? -24 : -40); c.scale(s, s);
       c.save(); c.globalCompositeOperation = 'lighter';
       const g = c.createRadialGradient(0, 0, 0, 0, 0, 26); g.addColorStop(0, 'rgba(255,120,40,0.35)'); g.addColorStop(1, 'rgba(255,80,20,0)'); c.fillStyle = g; ell(c, 0, 0, 26, 26); c.fill();
@@ -520,7 +521,7 @@ const Art = (() => {
       wingPair(c, 24, 13, f, lg(c, 0, -12, 0, 10, '#ff8a3a', '#7a1f12'), OUT);
       ell(c, 0, 4, 14, 12); fs(c, rg(c, 0, 4, 14, '#6a3a30', '#2a1612'), 1.4);
       c.save(); c.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 6; i++) { const a = i * 1.1 + P.t * 0.5; c.beginPath(); c.moveTo(Math.cos(a) * 4, 4 + Math.sin(a) * 4); c.lineTo(Math.cos(a) * 11, 4 + Math.sin(a) * 9); c.strokeStyle = 'rgba(255,150,40,0.85)'; c.lineWidth = 1.6; c.stroke(); }
+      for (let i = 0; i < 6; i++) { const a = i * 1.1 + Math.sin(P.t * LOOP) * 0.3; c.beginPath(); c.moveTo(Math.cos(a) * 4, 4 + Math.sin(a) * 4); c.lineTo(Math.cos(a) * 11, 4 + Math.sin(a) * 9); c.strokeStyle = 'rgba(255,150,40,0.85)'; c.lineWidth = 1.6; c.stroke(); }
       c.restore();
       ell(c, 0, -8, 9, 8); fs(c, rg(c, 0, -8, 9, '#7a4436', '#2e1814'), 1.3);
       for (const s2 of [-1, 1]) { c.beginPath(); c.moveTo(s2 * 4, -14); c.lineTo(s2 * 8, -21); c.lineTo(s2 * 8, -12); c.closePath(); fs(c, '#3a1e18', 1.1); }
@@ -530,7 +531,7 @@ const Art = (() => {
       c.restore();
     },
     zeppelin(c, P) {
-      const T = P.T, b = Math.sin(P.t * 2 + P.seed) * 1.2;
+      const T = P.T, b = Math.sin(P.t * LOOP + P.seed) * 1.2;
       c.save(); c.translate(0, -48 + b);
       ell(c, 0, 0, 17, 13); fs(c, rg(c, 0, 0, 17, T.light, T.dark), 1.5);
       for (const s of [-1, 0, 1]) { c.beginPath(); c.ellipse(0, 0, Math.abs(s) * 11 + 3, 13, 0, -Math.PI / 2, Math.PI / 2, s < 0); c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1; c.stroke(); }
@@ -542,12 +543,12 @@ const Art = (() => {
       c.restore();
     },
     ram(c, P) {
-      const T = P.T, ph = P.walk * Math.PI * 2, step = P.moving ? Math.sin(ph * 1.5) : 0;
+      const T = P.T, ph = P.walk * Math.PI * 2, step = P.moving ? Math.sin(ph * 2) : 0;
       c.save();
       // legs
       for (const [lx, sd] of [[-7, 1], [-3, -1], [3, 1], [7, -1]]) { rr(c, lx - 1.6, -8 - Math.max(0, step * sd) * 3, 3.2, 8, 1.4); fs(c, '#4a3a2e', 1); }
       // wooly body
-      c.translate(0, P.moving ? -Math.abs(Math.cos(ph * 1.5)) * 1.5 : 0);
+      c.translate(0, P.moving ? -Math.abs(Math.cos(ph * 2)) * 1.5 : 0);
       for (let i = 0; i < 7; i++) { ell(c, -8 + i * 2.7, -13 + Math.sin(i * 2) * 1.5, 4.6, 4.6); fs(c, '#f2eee6', 1); }
       ell(c, 0, -13, 10, 6); fs(c, lg(c, 0, -19, 0, -7, '#ffffff', '#d8d0c2'), 0);
       // head
@@ -560,14 +561,14 @@ const Art = (() => {
       c.restore();
     },
     sprite(c, P, o) {
-      const T = P.T, b = Math.sin(P.t * 7 + P.seed) * 1.6;
+      const T = P.T, b = Math.sin(P.t * LOOP + P.seed) * 1.6;
       const colr = { fire: ['#ffd24a', '#ff5a1a'], ice: ['#e8fbff', '#4ab6ff'], zap: ['#fffbd0', '#5a8cff'], heal: ['#f2fff0', '#4ad06a'] }[o.el];
       c.save(); c.translate(0, -14 + b);
       c.save(); c.globalCompositeOperation = 'lighter';
       const g = c.createRadialGradient(0, 0, 0, 0, 0, 12); g.addColorStop(0, rgba(colr[1], 0.6)); g.addColorStop(1, rgba(colr[1], 0)); c.fillStyle = g; ell(c, 0, 0, 12, 12); c.fill();
-      for (let i = 0; i < 3; i++) { const a = P.t * 6 + i * 2.1; ell(c, Math.cos(a) * 6, Math.sin(a) * 3 + 4, 1.4, 1.4); c.fillStyle = colr[0]; c.fill(); }
+      for (let i = 0; i < 3; i++) { const a = P.t * LOOP + i * 2.1; ell(c, Math.cos(a) * 6, Math.sin(a) * 3 + 4, 1.4, 1.4); c.fillStyle = colr[0]; c.fill(); }
       c.restore();
-      c.beginPath(); c.moveTo(-5, -1); c.quadraticCurveTo(0, -13 + Math.sin(P.t * 12), 5, -1); c.closePath(); fs(c, colr[1], 1);
+      c.beginPath(); c.moveTo(-5, -1); c.quadraticCurveTo(0, -13 + Math.sin(P.t * LOOP * 2), 5, -1); c.closePath(); fs(c, colr[1], 1);
       ell(c, 0, 0, 5.5, 5.5); fs(c, rg(c, 0, 0, 5.5, colr[0], colr[1]), 1.1);
       for (const s of [-1, 1]) { ell(c, s * 2, -0.5, 0.9, 1.3); c.fillStyle = OUT; c.fill(); }
       rr(c, -3, 5, 6, 1.6, 0.8); fs(c, T.main, 0.6);

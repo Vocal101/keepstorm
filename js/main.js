@@ -48,7 +48,7 @@ const Game = { match: null };
         if (o.bot) ais.push({ pid: 0, diff: o.bot });
         $id('app').hidden = true; $id('battle').hidden = false;
         if (Game.match) Game.match.destroy();
-        Game.match = new Match($id('battlecv'), { cfg, role: 'local', pid: 0, ais, arena: o.arena || 0, opp: { name: 'Dev Bot', lvl: lv, sub: 'dev' }, onEnd: (r, m) => { T.lastResult = r; } });
+        Game.match = new Match($id('battlecv'), { cfg, role: 'local', pid: 0, ais, arena: o.arena || 0, myName: Save.d.name, hud: { tutorial: !!o.tut }, opp: { name: 'Dev Bot', lvl: lv, sub: 'dev' }, onEnd: (r, m) => { T.lastResult = r; } });
         return 'started';
       },
       // simulate quickly without rendering

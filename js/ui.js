@@ -132,6 +132,10 @@ const UI = (() => {
         <button class="btn big gold" id="btnBattle">Battle</button>
         <button class="btn sq" id="btnRoad">${icon('trophy')}<span>Road</span></button>
       </div>
+      <div class="deckprev">
+        <div class="dphead"><b>Battle deck</b><span class="dptabs">${D.decks.map((d, i) => `<button class="dpt ${i === D.deckIdx ? 'on' : ''}" data-dk="${i}">${i + 1}</button>`).join('')}</span><span class="avg">${icon('drop')} ${(Save.deck().reduce((s2, id) => s2 + CARD[id].cost, 0) / 8).toFixed(1)}</span></div>
+        <div class="dpcards">${Save.deck().map(id => `<figure><img src="${cardImg(id)}" alt=""><figcaption>${esc(CARD[id].name)}</figcaption></figure>`).join('')}</div>
+      </div>
       <div class="freerow">
         <button class="mini-chest" id="btnFree"></button>
         <button class="mini-chest" id="btnBanner"></button>
@@ -142,6 +146,8 @@ const UI = (() => {
     requestAnimationFrame(() => arenaPreview($('.arenacv', el), ai));
     $('#btnBattle', el).onclick = () => { Audio2.play('click'); startLadder(); };
     $('#btnRoad', el).onclick = () => roadModal();
+    $$('[data-dk]', el).forEach(b => b.onclick = e => { e.stopPropagation(); D.deckIdx = +b.dataset.dk; Save.save(); Audio2.play('click'); show('battle'); });
+    $('.dpcards', el).onclick = () => { Audio2.play('click'); show('cards'); };
     renderChests();
   }
 
@@ -243,39 +249,7 @@ const UI = (() => {
   }
 
   // ---------------------------------------------------------------- cards page
-  function statRows(card, lvl) {
-    const rows = [];
-    const m = levelMul(lvl);
-    const f = v => fmtNum(Math.round(v * m));
-    if (card.type === 'spell') {
-      if (card.dmg) rows.push(['Damage', f(card.dmg)]);
-      if (card.dmg && card.towerMul) rows.push(['Tower damage', f(card.dmg * card.towerMul)]);
-      if (card.r) rows.push(['Radius', card.r + ' tiles']);
-      if (card.dur) rows.push(['Duration', card.dur + 's']);
-      if (card.freeze) rows.push(['Freeze', card.freeze + 's']);
-      if (card.stun) rows.push(['Stun', card.stun + 's']);
-      if (card.spell === 'crate') rows.push(['Spawns', '3 Imps']);
-      if (card.spell === 'haunting') rows.push(['Spawns', card.n + ' Rattlebones']);
-      return rows;
-    }
-    const u = UNITS[card.unit];
-    rows.push(['Hitpoints', f(u.hp) + (u.shield ? ' + ' + f(u.shield) + ' shield' : '')]);
-    if (u.ramp) rows.push(['Damage', u.ramp.map(x => f(x)).join(' → ')]);
-    else if (u.dmg) rows.push(['Damage', f(u.dmg) + (u.splash ? ' (area)' : '')]);
-    if (u.dmg && !u.kamikaze) rows.push(['Hit speed', u.hs + 's']);
-    if (u.dmg && !u.kamikaze && !u.ramp) rows.push(['DPS', f(u.dmg / u.hs)]);
-    if (u.rng) rows.push(['Range', u.rng < 1.3 ? 'Melee' : u.rng + ' tiles']);
-    if (!u.bld) rows.push(['Speed', { slow: 'Slow', med: 'Medium', fast: 'Fast', vfast: 'Very fast' }[u.spd]]);
-    if (u.tgt) rows.push(['Targets', u.tgt === 'bld' ? 'Buildings' : u.tgt === 'all' ? 'Air & Ground' : 'Ground']);
-    if (u.life) rows.push(['Lifetime', u.life + 's']);
-    if (card.count > 1) rows.push(['Count', 'x' + card.count]);
-    if (u.air) rows.push(['Type', 'Flying']);
-    if (u.spawner) rows.push(['Spawns', UNITS[u.spawner.u].name + ' every ' + u.spawner.every + 's']);
-    if (u.deathSpawn) rows.push(['On death', u.deathSpawn.n + ' ' + UNITS[u.deathSpawn.u].name + (u.deathSpawn.n > 1 ? 's' : '')]);
-    if (u.deathBomb) rows.push(['Death damage', f(u.deathBomb.dmg)]);
-    if (u.generate) rows.push(['Ember', '+1 every ' + u.generate + 's']);
-    return rows;
-  }
+  const statRows = cardStatRows;
 
   function pageCards(P) {
     const D = Save.d;
@@ -295,7 +269,7 @@ const UI = (() => {
       <div class="sortrow"><button class="chip ${deckView === 0 ? 'on' : ''}" data-sort="0">By rarity</button><button class="chip ${deckView === 1 ? 'on' : ''}" data-sort="1">By cost</button><button class="chip ${deckView === 2 ? 'on' : ''}" data-sort="2">By arena</button></div>
       <div class="collgrid">${sortedCollection().filter(c => D.cards[c.id] && !dk.includes(c.id)).map(c => cardTile(c.id, {})).join('')}</div>
       <h3 class="colh">Not found yet</h3>
-      <div class="collgrid locked">${sortedCollection().filter(c => !D.cards[c.id]).map(c => `<div class="ctile lockedc"><img src="${cardImg(c.id)}"><span class="unl">Arena ${c.arena + 1}</span></div>`).join('')}</div>
+      <div class="collgrid locked">${sortedCollection().filter(c => !D.cards[c.id]).map(c => `<div class="ctile lockedc"><img src="${cardImg(c.id)}"><span class="unl">Arena ${c.arena + 1}</span><span class="cname">${esc(c.name)}</span></div>`).join('')}</div>
     </div>`);
     P.appendChild(el);
     $$('.dt', el).forEach(b => b.onclick = () => { D.deckIdx = +b.dataset.i; Save.save(); show('cards'); });
@@ -328,6 +302,7 @@ const UI = (() => {
     return `<div class="ctile ${c.rarity} ${o.deck ? 'indeck' : ''} ${asc ? 'asc' : ''}" data-id="${id}" ${o.deck ? `data-slot="${o.slot}"` : ''}>
       <img src="${cardImg(id, { asc })}" alt="${esc(c.name)}">
       <span class="lv">Lvl ${own ? own.lvl : 1}</span>
+      <span class="cname">${esc(c.name)}</span>
       ${asc ? '<span class="asctag">Ascended</span>' : ''}
       <div class="cp ${u && u.ready ? 'ready' : ''}"><i style="width:${prog * 100}%"></i><b>${u && u.max ? 'MAX' : u ? (u.ready ? 'Upgrade!' : u.have + '/' + u.need) : ''}</b></div>
     </div>`;
@@ -577,19 +552,20 @@ const UI = (() => {
     const name = rng.pick(AI_NAMES);
     const go = (myDeck, aiDeck) => {
       const mode = Object.assign({}, ev.mode); delete mode.draft; delete mode.mirror; delete mode.chaos; delete mode.duo;
-      let cfg, ais, opp;
+      let cfg, ais, opp, myName;
       if (ev.mode.duo) {
         const ally = rng.pick(AI_NAMES.filter(n => n !== name)), name2 = rng.pick(AI_NAMES.filter(n => n !== name && n !== ally));
         cfg = { seed: rng.int(1, 1e9), mode, players: [Object.assign(myPlayer(true, myDeck), { team: 0 }), aiPlayer(name, pickAIDeck(rng, 5).cards.slice(), STD_LEVEL, STD_LEVEL, rng, { team: 1 }), aiPlayer(ally, pickAIDeck(rng, 5).cards.slice(), STD_LEVEL, STD_LEVEL, rng, { team: 0 }), aiPlayer(name2, pickAIDeck(rng, 5).cards.slice(), STD_LEVEL, STD_LEVEL, rng, { team: 1 })] };
         ais = [{ pid: 1, diff }, { pid: 2, diff: 'hard', partner: true }, { pid: 3, diff }];
-        opp = { name: name + ' & ' + name2, lvl: STD_LEVEL, sub: 'Ally: ' + ally };
+        opp = { name: name + ' & ' + name2, lvl: STD_LEVEL, sub: 'Your ally: ' + ally };
+        myName = Save.d.name + ' & ' + ally;
       } else {
         cfg = { seed: rng.int(1, 1e9), mode, players: [myPlayer(true, myDeck), aiPlayer(name, aiDeck, STD_LEVEL, STD_LEVEL, rng)] };
         ais = [{ pid: 1, diff }];
         opp = { name, lvl: STD_LEVEL, sub: ev.name };
       }
       launch({
-        cfg, role: 'local', pid: 0, ais, arena: rng.int(0, ARENAS.length - 1), label: ev.name, opp, vs: { oppName: opp.name, oppLvl: STD_LEVEL, oppDeck: aiDeck || cfg.players[1].deck },
+        cfg, role: 'local', pid: 0, ais, arena: rng.int(0, ARENAS.length - 1), label: ev.name, opp, myName, vs: { oppName: opp.name, oppLvl: STD_LEVEL, oppDeck: aiDeck || cfg.players[1].deck },
         onResult: res => {
           const D = Save.d; let gold = 0;
           if (res.win) { gold = ev.reward.gold; D.gold += gold; D.eventWins[ev.id] = (D.eventWins[ev.id] || 0) + 1; D.stats.eventWins++; Save.save(); }
@@ -672,7 +648,10 @@ const UI = (() => {
     setTimeout(() => {
       app.hidden = true; bs.hidden = false;
       const cv = $('#battlecv');
+      const st = Save.d.settings;
       const opts = Object.assign({}, o, {
+        myName: o.myName || Save.d.name,
+        hud: { names: st.cardNames !== false, stats: st.cardStats !== false, tutorial: o.label === 'Ladder' && Save.d.stats.played === 0 },
         onEnd: (res, m) => { m.destroy(); current = null; Game.match = null; showResult(o, res); },
       });
       if (o.role === 'client') { opts.team = 1; }
@@ -694,10 +673,12 @@ const UI = (() => {
     const m = modal(`<div class="bmenu"><h2>${local ? 'Paused' : 'Battle menu'}</h2>
       <label>Sound <input type="range" min="0" max="1" step="0.05" id="sfxR" value="${Save.d.settings.sfx}"></label>
       <label>Music <input type="range" min="0" max="1" step="0.05" id="musR" value="${Save.d.settings.music}"></label>
+      ${document.fullscreenEnabled ? `<div class="row"><button class="btn blue small" data-a="fs">${document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}</button></div>` : ''}
       <div class="row"><button class="btn green" data-a="resume">Resume</button><button class="btn red" data-a="quit">Surrender</button></div></div>`, { onClose: () => { if (current) current.paused = false; } });
     $('#sfxR', m).oninput = e => { Save.d.settings.sfx = +e.target.value; Audio2.setVolumes(Save.d.settings.sfx, Save.d.settings.music); Save.save(); };
     $('#musR', m).oninput = e => { Save.d.settings.music = +e.target.value; Audio2.setVolumes(Save.d.settings.sfx, Save.d.settings.music); Save.save(); };
     $$('[data-a]', m).forEach(b => b.onclick = () => {
+      if (b.dataset.a === 'fs') toggleFullscreen();
       if (b.dataset.a === 'quit') { if (current) { current.paused = false; current.surrender(); } }
       closeModal();
       if (current) current.paused = false;
@@ -710,14 +691,14 @@ const UI = (() => {
     Audio2.play(res.win ? 'win' : res.draw ? 'click' : 'lose');
     const title = res.draw ? 'Draw' : res.win ? 'Victory!' : 'Defeat';
     const reasonTxt = { disconnect: 'Opponent disconnected', surrender: res.win ? 'Opponent surrendered' : 'You surrendered', tiebreak: 'Decided by tower health', keep: '', time: '', sudden: '' }[res.reason] || '';
-    const bannersHtml = (n, mine) => [0, 1, 2].map(i => `<span class="bn ${i < n ? 'on' : ''} ${mine ? 'mine' : 'opp'}"></span>`).join('');
+    const bannersHtml = (n, mine) => [0, 1, 2].map(i => `<span class="bn ${i < n ? 'on' : ''} ${mine ? 'mine' : 'opp'}" style="animation-delay:${0.35 + i * 0.28 + (mine ? 0.9 : 0)}s"></span>`).join('');
     const el = h(`<div class="result ${res.win ? 'win' : res.draw ? 'draw' : 'lose'}">
       <div class="rtitle">${title}</div>
       ${reasonTxt ? `<div class="rreason">${reasonTxt}</div>` : ''}
-      <div class="rrow"><div class="rname">${esc(o.vs.oppName)}</div><div class="rbn">${bannersHtml(res.oppBanners, false)}</div></div>
-      <div class="rrow"><div class="rname">${esc(Save.d.name)}</div><div class="rbn">${bannersHtml(res.myBanners, true)}</div></div>
+      <div class="rrow opp"><div class="rname"><small>Opponent</small>${esc(o.vs.oppName)}</div><div class="rbn">${bannersHtml(res.oppBanners, false)}</div></div>
+      <div class="rrow me ${res.win ? 'winner' : ''}"><div class="rname"><small>You</small>${esc(o.myName || Save.d.name)}</div><div class="rbn">${bannersHtml(res.myBanners, true)}</div></div>
       <div class="rewards">
-        ${extra.trophies != null ? `<div class="rw">${icon('trophy')}<b>${extra.trophies >= 0 ? '+' : ''}${extra.trophies}</b></div>` : ''}
+        ${extra.trophies != null ? `<div class="rw">${icon('trophy')}<b class="countup" data-to="${extra.trophies}">0</b><small>${Save.d.trophies} total</small></div>` : ''}
         ${extra.gold ? `<div class="rw">${icon('gold')}<b>+${extra.gold}</b></div>` : ''}
         ${extra.chest ? `<div class="rw chestw"><span class="cv"></span><b>${CHESTS[extra.chest].name}</b></div>` : ''}
         ${extra.trophies != null && res.win && !extra.chest ? '<div class="rw"><small>Chest slots full</small></div>' : ''}
@@ -729,12 +710,22 @@ const UI = (() => {
     const bs = $('#battle');
     bs.appendChild(el);
     if (extra.chest) $('.chestw .cv', el).appendChild(chestCanvas(extra.chest, 64));
+    $$('.countup', el).forEach(b => {
+      const to = +b.dataset.to;
+      let t0 = 0;
+      const step = now => { if (!t0) t0 = now; const k = clamp((now - t0) / 700, 0, 1); b.textContent = (to >= 0 ? '+' : '') + Math.round(to * k); if (k < 1) requestAnimationFrame(step); else if (to) Audio2.play('coin', 0.6); };
+      setTimeout(() => requestAnimationFrame(step), 1500);
+    });
     $('#resOk', el).onclick = () => {
       el.remove(); bs.hidden = true; $('#app').hidden = false;
       Audio2.playMusic('menu');
       show(tab === 'cards' ? 'cards' : tab);
       if (extra.newArena) setTimeout(() => toast('Welcome to ' + ARENAS[Save.arena()].name + '! New cards can drop from chests.'), 300);
     };
+  }
+
+  function toggleFullscreen() {
+    try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* not allowed here */ }
   }
 
   // ---------------------------------------------------------------- modals
@@ -797,11 +788,17 @@ const UI = (() => {
     const m = modal(`<div class="settings"><h2>Settings</h2>
       <label>Sound effects <input type="range" min="0" max="1" step="0.05" id="sfxR" value="${D.settings.sfx}"></label>
       <label>Music <input type="range" min="0" max="1" step="0.05" id="musR" value="${D.settings.music}"></label>
+      <label class="tog">Card names in battle <input type="checkbox" id="optNames" ${D.settings.cardNames !== false ? 'checked' : ''}></label>
+      <label class="tog">Card stats on hover / hold <input type="checkbox" id="optStats" ${D.settings.cardStats !== false ? 'checked' : ''}></label>
+      ${document.fullscreenEnabled ? '<div class="row"><button class="btn blue small" data-a="fs">Toggle fullscreen</button></div>' : ''}
       <div class="row"><button class="btn blue" data-a="help">How to play</button></div>
       <div class="row"><button class="btn red small" data-a="reset">Reset progress</button></div>
       <p class="tiny">Keepstorm v${KS_VERSION} · progress is saved in this browser.</p></div>`);
     $('#sfxR', m).oninput = e => { D.settings.sfx = +e.target.value; Audio2.setVolumes(D.settings.sfx, D.settings.music); Save.save(); };
     $('#musR', m).oninput = e => { D.settings.music = +e.target.value; Audio2.setVolumes(D.settings.sfx, D.settings.music); Save.save(); };
+    $('#optNames', m).onchange = e => { D.settings.cardNames = e.target.checked; Save.save(); };
+    $('#optStats', m).onchange = e => { D.settings.cardStats = e.target.checked; Save.save(); };
+    const fsb = $('[data-a=fs]', m); if (fsb) fsb.onclick = () => toggleFullscreen();
     $('[data-a=help]', m).onclick = () => helpModal();
     $('[data-a=reset]', m).onclick = () => confirmModal('Erase all progress, cards and trophies? This cannot be undone.', () => { Save.reset(); show('battle'); toast('Progress reset'); });
   }

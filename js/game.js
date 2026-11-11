@@ -1,7 +1,8 @@
 'use strict';
 // Battle controller: runs a local/hosted simulation or mirrors a remote host, and feeds the renderer + HUD.
 
-const SNAP_HZ = 15;
+const SNAP_HZ = 20;
+const INTERP_DELAY = 110; // ms the client renders behind the host, so it always has two snapshots to blend
 const FLAG = { air: 1, bld: 2, dead: 4, stun: 8, freeze: 16, slow: 32, rage: 64, invis: 128, clone: 256, asc: 512, charging: 1024, hero: 2048, under: 4096, deflect: 8192, veil: 16384, flash: 32768, active: 65536, hid1: 131072, hid2: 262144, chain: 524288 };
 
 function entFlags(e) {
@@ -33,7 +34,7 @@ function encodeSnap(b, pid, evs) {
   const p = b.projs.map(x => [x.id, x.k, x.team, r(x.x), r(x.y), r(x.z || 0), r(x.dx || 0), r(x.dy || 0), r(x.w || 0), x.lob ? 1 : 0]);
   const a = b.areas.map(x => [x.id, x.k, x.team, r(x.x), r(x.y), r(x.r), r(x.t), r(x.life)]);
   const me = b.players[pid];
-  const hand = me.hand.map((cid, i) => { const c = b.cardFor(me, i); return c ? [cid, c.card.id, c.cost] : null; });
+  const hand = me.hand.map((cid, i) => { const c = b.cardFor(me, i); return c ? [cid, c.card.id, c.cost, c.lvl] : null; });
   return {
     t: 's', tk: b.tick, tm: Math.round(b.t * 100), tl: Math.round(b.timeLeft() * 100), ph: b.phase, em: b.emberPhase(), bn: b.banners, ov: b.over ? 1 : 0, w: b.winner, rs: b.endReason,
     e, p, a, ev: evs,
@@ -56,7 +57,7 @@ class LocalSource {
     for (const pr of b.projs) { pr.rx = lerp(pr.px, pr.x, alpha); pr.ry = lerp(pr.py, pr.y, alpha); pr.ox = pr.px; pr.oy = pr.py; }
     const hand = p.hand.map((cid, i) => {
       const c = b.cardFor(p, i); if (!c) return null;
-      return { cid, card: c.card, cost: c.cost, echo: !!c.echo, ascNeed: p.asc[cid] ? ASC_CYCLES : 0, ascProg: p.ascCnt[cid] || 0, ascReady: !!p.asc[cid] && (p.ascCnt[cid] || 0) >= ASC_CYCLES };
+      return { cid, card: c.card, cost: c.cost, lvl: c.lvl, echo: !!c.echo, ascNeed: p.asc[cid] ? ASC_CYCLES : 0, ascProg: p.ascCnt[cid] || 0, ascReady: !!p.asc[cid] && (p.ascCnt[cid] || 0) >= ASC_CYCLES };
     });
     let abil = null;
     if (p.heroEnt && !p.heroEnt.dead && p.heroEnt.deployT <= 0 && p.heroCard) {
@@ -77,7 +78,7 @@ class RemoteSource {
   constructor(pid, team) {
     this.pid = pid; this.team = team; this.map = new Map(); this.projMap = new Map(); this.areas = []; this.byId = new Map();
     this.last = null; this.at = 0; this.interval = 1000 / SNAP_HZ; this.me = { hand: [], next: null, ember: 0, lastCard: null, abil: null };
-    this.towers = [];
+    this.towers = []; this.hist = []; this.offset = null;
   }
   apply(s) {
     const now = performance.now();
@@ -122,13 +123,23 @@ class RemoteSource {
       pseen.add(id);
     }
     for (const id of [...this.projMap.keys()]) if (!pseen.has(id)) this.projMap.delete(id);
+    // remember positions per snapshot (by host time) for buffered interpolation
+    const hostT = s.tm * 10;
+    const ePos = new Map(), pPos = new Map();
+    for (const a of s.e) ePos.set(a[0], [a[4] / 100, a[5] / 100]);
+    for (const a of s.p) pPos.set(a[0], [a[3] / 100, a[4] / 100]);
+    if (this.hist.length && hostT <= this.hist[this.hist.length - 1].hostT) this.hist = [];
+    this.hist.push({ hostT, ents: ePos, projs: pPos });
+    if (this.hist.length > 10) this.hist.shift();
+    const off = now - hostT;
+    if (this.offset == null || off < this.offset) this.offset = off; else this.offset += (off - this.offset) * 0.02;
     this.areas = s.a.map(([id, k, team, x, y, r, t, life]) => ({ id, k, team, x: x / 100, y: y / 100, r: r / 100, t: t / 100, life: life / 100 }));
     this.timeLeft = s.tl / 100; this.phase = s.ph; this.emberPhase = s.em; this.over = !!s.ov; this.winner = s.w; this.reason = s.rs;
     this.bn = s.bn; this.stats = s.st;
     const m = s.me;
     this.meRaw = m;
     this.me = {
-      hand: m.h.map(h => h ? { cid: h[0], card: CARD[h[1]], cost: h[2], echo: h[0] === 'echo', ascNeed: m.as.includes(h[0]) ? ASC_CYCLES : 0, ascProg: (m.ac2 || {})[h[0]] || 0, ascReady: m.as.includes(h[0]) && ((m.ac2 || {})[h[0]] || 0) >= ASC_CYCLES } : null),
+      hand: m.h.map(h => h ? { cid: h[0], card: CARD[h[1]], cost: h[2], lvl: h[3] || STD_LEVEL, echo: h[0] === 'echo', ascNeed: m.as.includes(h[0]) ? ASC_CYCLES : 0, ascProg: (m.ac2 || {})[h[0]] || 0, ascReady: m.as.includes(h[0]) && ((m.ac2 || {})[h[0]] || 0) >= ASC_CYCLES } : null),
       next: m.n, ember: m.e / 100, lastCard: m.lc,
       abil: m.ha && m.hc ? { card: m.hc, cost: CARD[m.hc].ability.cost, cd: m.ac / 100, cdMax: CARD[m.hc].ability.cd, name: CARD[m.hc].ability.name } : null,
     };
@@ -136,17 +147,33 @@ class RemoteSource {
   }
   state(dt) {
     const now = performance.now();
-    const a = clamp((now - this.at) / this.interval, 0, 1.15);
+    // find the two snapshots around (now - delay) on the host's clock and blend between them
+    const rt = now - (this.offset || 0) - INTERP_DELAY;
+    let A = null, B = null;
+    for (let i = this.hist.length - 1; i >= 0; i--) if (this.hist[i].hostT <= rt) { A = this.hist[i]; B = this.hist[i + 1] || null; break; }
+    if (!A) { A = this.hist[0] || null; B = null; }
+    const k = A && B ? clamp((rt - A.hostT) / Math.max(1, B.hostT - A.hostT), 0, 1) : 0;
+    const blend = (key, id) => {
+      const pa = A && A[key].get(id), pb = B && B[key].get(id);
+      if (pa && pb) return [lerp(pa[0], pb[0], k), lerp(pa[1], pb[1], k)];
+      return pa || pb || null;
+    };
     const ents = [...this.map.values()];
     this.byId.clear();
     for (const e of ents) {
-      e.rx = lerp(e.x0, e.x, a); e.ry = lerp(e.y0, e.y, a);
+      const bp = blend('ents', e.id);
+      if (bp) { e.rx = bp[0]; e.ry = bp[1]; } else { e.rx = e.x; e.ry = e.y; }
       e.atkT = (e.atkT || 0) + dt;
       if (e.state === 'walk') e.walkT += dt;
       this.byId.set(e.id, e);
     }
     const projs = [...this.projMap.values()];
-    for (const p of projs) { p.rx = lerp(p.x0, p.x, a); p.ry = lerp(p.y0, p.y, a); p.ox = p.x0; p.oy = p.y0; }
+    for (const p of projs) {
+      const bp = blend('projs', p.id);
+      p.ox = p.rx != null ? p.rx : p.x0; p.oy = p.ry != null ? p.ry : p.y0;
+      if (bp) { p.rx = bp[0]; p.ry = bp[1]; } else { p.rx = p.x; p.ry = p.y; }
+      if (Math.abs(p.rx - p.ox) + Math.abs(p.ry - p.oy) < 1e-4) { p.ox = p.x0; p.oy = p.y0; }
+    }
     // ember keeps flowing between snapshots so the bar looks smooth
     const rate = (this.emberPhase || 1) / 2.8;
     const ember = Math.min(10, this.me.ember + rate * (now - (this.emberAt || now)) / 1000);
@@ -190,7 +217,9 @@ class Match {
       play: (slot, x, y) => this.play(slot, x, y),
       ability: () => this.ability(),
       emote: id => this.emote(id),
-    });
+    }, opts.hud || {});
+    this.renderer.showNames = !opts.hud || opts.hud.names !== false;
+    this.renderer.banner(opts.startText || 'Battle!', '#ffd84a', opts.label && opts.label !== 'Ladder' ? opts.label : null);
     this.onResize = () => this.renderer.resize();
     window.addEventListener('resize', this.onResize);
     this.startT = performance.now();
@@ -295,6 +324,7 @@ class Match {
     const S = this.role === 'client' ? this.src.state(dt) : this.src.state(alpha);
     const mine = this.role === 'client' ? null : this.b.players[this.pid];
     S.opp = this.opts.opp || { name: 'Opponent', lvl: 1 };
+    S.myName = this.opts.myName || 'You';
     this.lastState = S;
     if (mine) S.me.ember = mine.ember;
     this.renderer.alwaysBars = false;

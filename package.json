@@ -1,6 +1,6 @@
 {
   "name": "keepstorm",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Real-time card battler for the browser: decks, towers, AI opponents and online play.",
   "private": true,
   "scripts": {

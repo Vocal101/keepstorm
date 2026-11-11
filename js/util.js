@@ -1,7 +1,7 @@
 'use strict';
 // Shared helpers. Loaded first in the browser and by the node test runner.
 
-const KS_VERSION = '1.0.0';
+const KS_VERSION = '1.1.0';
 const NET_VER = 1;
 
 function RNG(seed) {

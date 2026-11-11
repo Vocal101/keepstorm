@@ -288,3 +288,32 @@ input[type=range] { flex: 1; max-width: 200px; accent-color: var(--gold); paddin
 @media (min-width: 900px) {
   body { background: radial-gradient(ellipse at 50% 0%, #3a2c58 0%, var(--bg0) 70%), #120e1a; }
 }
+
+/* ---------- v1.1: names, deck preview, toggles, result animation ---------- */
+.ctile .cname { display: block; margin-top: 3px; text-align: center; font-family: var(--head); font-size: 11.5px; line-height: 1.15; color: #f0e8ff; text-shadow: 0 1px 0 var(--out); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctile.rare .cname { color: #ffd9a8; } .ctile.epic .cname { color: #e4c4ff; } .ctile.legendary .cname { color: #b8fff2; } .ctile.hero .cname { color: #fff0a0; }
+.lockedc .cname { color: #8a809a; text-shadow: none; }
+.ctile .cp { margin-top: 2px; }
+.deckprev { margin: 14px 0 4px; background: rgba(0,0,0,0.28); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.dphead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dphead b { font-family: var(--head); font-weight: 400; font-size: 16px; }
+.dptabs { display: flex; gap: 4px; }
+.dpt { width: 26px; height: 24px; border-radius: 7px; background: rgba(255,255,255,0.08); font-family: var(--head); font-size: 13px; }
+.dpt.on { background: linear-gradient(180deg, #6fb2ff, #2a6ad0); }
+.dphead .avg { margin-left: auto; font-size: 14px; }
+.dphead .avg .ic svg { width: 16px; height: 16px; }
+.dpcards { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; cursor: pointer; }
+.dpcards figure { margin: 0; min-width: 0; }
+.dpcards img { width: 100%; display: block; border-radius: 5px; }
+.dpcards figcaption { font-size: 8.5px; text-align: center; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+label.tog { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0; font-weight: 500; }
+label.tog input { width: 22px; height: 22px; accent-color: var(--gold); }
+.rrow .rname small { display: block; font-family: var(--body); font-size: 11px; color: var(--dim); letter-spacing: 0.5px; text-transform: uppercase; }
+.rrow.me { border: 2px solid rgba(124,182,255,0.4); }
+.rrow.opp { border: 2px solid rgba(255,138,122,0.3); }
+.rrow.winner { box-shadow: 0 0 22px rgba(255,216,74,0.35); border-color: var(--gold); }
+.bn.on { animation: bnPop .45s cubic-bezier(.2,1.8,.4,1) both; }
+@keyframes bnPop { from { transform: scale(0) rotate(-20deg); opacity: 0; } }
+.rw small { font-size: 11px; color: var(--dim); }
+@media (hover: hover) { .ctile:hover img { filter: drop-shadow(0 3px 0 rgba(0,0,0,0.4)) brightness(1.08); transform: translateY(-2px); } .ctile img { transition: transform .12s, filter .12s; } }
+.ctile .lv { bottom: 38px; }

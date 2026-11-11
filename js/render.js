@@ -3,6 +3,17 @@
 
 const LW = 600, TOPH = 64, HEAD = 44, ARENA_Y = TOPH + HEAD, ARENA_X = 12, TSZ = 32;
 const ARENA_H = AR.H * TSZ, HUD_Y = ARENA_Y + ARENA_H, HUDH = 200, LH = HUD_Y + HUDH;
+// creatures animated by time (flapping, bobbing) rather than by walking; their art loops every 1.2s
+const TIME_ANIM = new Set(['bat', 'wisp', 'gargoyle', 'drake', 'hound', 'zeppelin', 'sprite']);
+// sprite bounds in art px: [x0, y0, w, h] relative to the unit's feet
+const SPR_BOX = {
+  _: [-48, -74, 96, 90],
+  iron_colossus: [-76, -116, 152, 132], titan_knight: [-80, -116, 160, 132], bone_giant: [-70, -112, 140, 128],
+  boulder_brute: [-54, -74, 108, 88], charger: [-56, -80, 112, 96], cinder_hound: [-54, -84, 108, 96],
+  zeppelin: [-30, -80, 60, 76], magma_wyrm: [-44, -76, 88, 88], hatchling_drake: [-40, -66, 80, 76],
+  ram_rider: [-40, -74, 80, 88], siege_ram: [-40, -66, 80, 80], thunder_engine: [-34, -66, 68, 74],
+  bone_monarch: [-60, -86, 120, 102], sunblade_paladin: [-54, -84, 108, 100],
+};
 
 class Renderer {
   constructor(canvas) {
@@ -29,7 +40,7 @@ class Renderer {
   setup(opts) {
     this.viewerTeam = opts.team || 0; this.flip = this.viewerTeam === 1; this.arena = opts.arena || 0;
     this.parts = []; this.fxLines = []; this.banners = []; this.bubbles = []; this.bgKey = '';
-    this.deathMarks = [];
+    this.deathMarks = []; this.labels = [];
   }
 
   // world tile -> logical screen px
@@ -62,7 +73,7 @@ class Renderer {
   onEvent(e, A) {
     const sfx = (n, v) => A && A.play(n, v);
     switch (e.t) {
-      case 'play': this.ring(e.x, e.y, 1.2, '#ffffff', 0.4); sfx('deploy'); break;
+      case 'play': this.ring(e.x, e.y, 1.2, '#ffffff', 0.4); sfx('deploy'); if (CARD[e.card] && this.showNames !== false) this.labels.push({ text: (e.asc ? 'Ascended ' : '') + CARD[e.card].name, x: e.x, y: e.y, team: e.team, t: 0, asc: e.asc }); break;
       case 'landed': this.dust(e.x, e.y, e.air ? 3 : 7); if (!e.air) sfx('land', 0.4); break;
       case 'hit': this.sparks(e.x, e.y, e.k === 'cannonball' ? '#ffd27a' : '#ffffff', 4, e.air ? 1.2 : 0.5); sfx(e.k === 'cannonball' || e.k === 'bomb' ? 'thud' : 'hit', 0.35); break;
       case 'melee': this.sparks(e.x, e.y, '#fff6d0', 5, 0.6); sfx(e.big ? 'thud' : 'slash', 0.4); break;
@@ -217,6 +228,7 @@ class Renderer {
     this.drawLines(dt);
     for (const e of S.ents) this.drawBars(e, S);
     if (ui && ui.drag) this.drawGhost(ui.drag, S);
+    this.drawLabels(dt);
     this.drawBubbles(S, dt);
     c.restore();
 
@@ -253,8 +265,13 @@ class Renderer {
       c.save(); c.translate(x, y + (e.tower === 'keep' ? 30 : 20));
       const view = { back: this.flip ? e.team === 0 : e.team === 1, dx: this.flip ? -e.dirX : e.dirX, dy: this.flip ? -e.dirY : e.dirY };
       if (e.dead) WorldArt.drawRubble(c, e, T, e.tower === 'keep');
-      else if (e.tower === 'keep') WorldArt.drawKeep(c, e, T, this.t, view);
-      else WorldArt.drawSideTower(c, e, T, this.t, view);
+      else {
+        const b = this.towerBase(e, T);
+        c.drawImage(b.cv, b.x, b.y, b.w, b.h);
+        if (e.hitFlash > 0) { c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.18; c.drawImage(b.cv, b.x, b.y, b.w, b.h); c.restore(); }
+        if (e.tower === 'keep') WorldArt.drawKeep(c, e, T, this.t, view, 'top');
+        else WorldArt.drawSideTower(c, e, T, this.t, view, 'top');
+      }
       c.restore();
       return;
     }
@@ -265,8 +282,11 @@ class Renderer {
       c.restore(); return;
     }
     const sdx = this.flip ? -e.dirX : e.dirX, sdy = this.flip ? -e.dirY : e.dirY;
-    const back = sdy < -0.15;
-    const flipX = sdx < -0.12;
+    // facing with hysteresis so units don't flicker between left/right or front/back
+    if (e.rBack == null) { e.rBack = sdy < 0; e.rFlip = sdx < 0; }
+    if (sdy < -0.3) e.rBack = true; else if (sdy > 0.3) e.rBack = false;
+    if (sdx < -0.25) e.rFlip = true; else if (sdx > 0.25) e.rFlip = false;
+    const back = e.rBack, flipX = e.rFlip;
     c.save();
     c.translate(x, y - (e.z || 0) * TSZ);
     let alpha = 1;
@@ -276,23 +296,26 @@ class Renderer {
       alpha *= 1 - k * 0.55;
       if (!e.bld) c.translate(0, -k * k * 40);
     }
-    if (e.clone) alpha *= 0.8;
+    if (e.clone) alpha *= 0.75;
+    if (e.chain || e.dashing) alpha *= 0.85;
     c.globalAlpha = alpha;
-    if (e.hitFlash > 0) c.filter = 'brightness(1.9)';
-    else if (e.freezeT > 0) c.filter = 'saturate(0.3) brightness(1.25) hue-rotate(180deg)';
-    else if (e.clone) c.filter = 'hue-rotate(160deg) saturate(1.6) brightness(1.2)';
     if (e.bld) {
       const view = { dx: sdx, dy: sdy };
       WorldArt.drawBuilding(c, e, T, this.t, view);
+      if (e.hitFlash > 0) { c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.25; Art.ell(c, 0, -16, 26, 22); c.fillStyle = '#ffffff'; c.fill(); c.globalCompositeOperation = 'source-over'; }
     } else {
       if (flipX) c.scale(-1, 1);
       const moving = e.state === 'walk' && !(e.stunT > 0) && !(e.freezeT > 0);
       const atk = Math.min(1, (e.atkT || 9) / 0.38);
       const P = { T, t: this.t + e.id * 0.37, walk: e.walkT * 1.6, moving, atk, back, seed: e.id, charge: e.chargeFrac || 0 };
-      if (e.chain || e.dashing) c.globalAlpha = alpha * 0.85;
-      Art.drawUnit(c, e.kind, P);
+      const spr = this.sprite(e, P);
+      if (spr) {
+        c.drawImage(spr.cv, spr.x, spr.y, spr.w, spr.h);
+        // cheap tints: re-draw the sprite additively instead of using slow canvas filters
+        const glow = e.hitFlash > 0 ? 0.55 : e.freezeT > 0 ? 0.3 : e.clone ? 0.3 : 0;
+        if (glow) { c.globalCompositeOperation = 'lighter'; c.globalAlpha = alpha * glow; c.drawImage(spr.cv, spr.x, spr.y, spr.w, spr.h); c.globalCompositeOperation = 'source-over'; }
+      } else Art.drawUnit(c, e.kind, P);
     }
-    c.filter = 'none';
     c.globalAlpha = 1;
     // status overlays
     if (e.freezeT > 0) {
@@ -312,6 +335,64 @@ class Renderer {
       c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); c.closePath(); c.fillStyle = 'rgba(255,255,255,0.6)'; c.fill();
       c.restore();
     }
+  }
+
+  // Units are drawn once per animation frame into small offscreen canvases and reused.
+  // This keeps big battles smooth: drawing every unit as vector art each frame was the main cost.
+  sprite(e, P) {
+    const a = Art.ART[e.kind];
+    if (!a || this.noSprites) return null;
+    if (e.kind === 'thunder_engine' && P.charge > 0.05) return null;
+    const ss = Math.min(2, this.scale * this.dpr);
+    if (this.sprScale !== ss) { this.sprCache = new Map(); this.sprScale = ss; }
+    let fk, Q;
+    if (a.kind === 'cre' && TIME_ANIM.has(a.fn)) {
+      const f = (Math.floor(this.t * 10) + e.id * 5) % 12;
+      fk = 'c' + f; Q = { t: f / 12 * 1.2, walk: 0, atk: P.atk < 1 ? 0.5 : 1 };
+    } else if (P.atk < 1) {
+      const f = Math.min(5, Math.floor(P.atk * 6));
+      fk = 'a' + f; Q = { t: 0, walk: 0, moving: false, atk: (f + 0.5) / 6 };
+    } else if (P.moving) {
+      const f = Math.floor((((P.walk % 1) + 1) % 1) * 6);
+      fk = 'w' + f; Q = { t: 0, walk: f / 6, atk: 1 };
+    } else {
+      const f = Math.floor((this.t + e.id * 0.37) * 0.8) % 2;
+      fk = 'i' + f; Q = { t: f * 1.43, walk: 0, atk: 1 };
+    }
+    const ti = P.T === TEAM_COLORS[0] ? 0 : 1;
+    const key = e.kind + '|' + ti + '|' + (P.back ? 1 : 0) + '|' + fk;
+    let s = this.sprCache.get(key);
+    if (!s) {
+      const B = SPR_BOX[e.kind] || SPR_BOX._;
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(B[2] * ss); cv.height = Math.ceil(B[3] * ss);
+      const g = cv.getContext('2d');
+      g.scale(ss, ss); g.translate(-B[0], -B[1]);
+      Art.drawUnit(g, e.kind, Object.assign({}, P, Q, { seed: 0 }));
+      s = { cv, x: B[0], y: B[1], w: B[2], h: B[3] };
+      if (this.sprCache.size >= 900) this.sprCache.delete(this.sprCache.keys().next().value);
+      this.sprCache.set(key, s);
+    }
+    return s;
+  }
+
+  towerBase(e, T) {
+    const ss = Math.min(2, this.scale * this.dpr);
+    if (this.tbScale !== ss) { this.tbCache = new Map(); this.tbScale = ss; }
+    const key = e.tower + '|' + e.skin + '|' + T.main;
+    let s = this.tbCache.get(key);
+    if (!s) {
+      const B = e.tower === 'keep' ? [-86, -108, 172, 128] : [-62, -124, 124, 144];
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(B[2] * ss); cv.height = Math.ceil(B[3] * ss);
+      const g = cv.getContext('2d');
+      g.scale(ss, ss); g.translate(-B[0], -B[1]);
+      if (e.tower === 'keep') WorldArt.drawKeep(g, e, T, 0, { dx: 0, dy: 1 }, 'base');
+      else WorldArt.drawSideTower(g, e, T, 0, { dx: 0, dy: 1 }, 'base');
+      s = { cv, x: B[0], y: B[1], w: B[2], h: B[3] };
+      this.tbCache.set(key, s);
+    }
+    return s;
   }
 
   drawBeams(S) {
@@ -453,6 +534,7 @@ class Renderer {
       const yy = y + (e.tower === 'keep' ? -112 : -82);
       hpBar(c, x - w / 2, yy, w, 9, e.hp / e.maxHp, mine, Math.ceil(e.hp));
       lvlBadge(c, x - w / 2 - 9, yy + 4.5, e.lvl, mine);
+      if (e.tower === 'keep') namePlate(c, x, yy - 15, mine ? (S.myName || 'You') : (S.opp && S.opp.name) || 'Opponent', mine);
       return;
     }
     const damaged = e.hp < e.maxHp - 0.5 || (e.maxShield && e.shield < e.maxShield);
@@ -460,11 +542,28 @@ class Renderer {
     const h = e.bld ? 56 : e.air ? 52 : (e.r > 0.6 ? 58 : e.r > 0.45 ? 44 : 34);
     const w = clamp(e.r * 46, 18, 42);
     const yy = y - h;
-    if (!damaged && !e.bld) { lvlBadge(c, x - w / 2 - 3, yy + 2, e.lvl, mine, true); return; }
+    if (!damaged && !e.bld) return;
     hpBar(c, x - w / 2, yy, w, 5, e.hp / e.maxHp, mine);
     if (e.maxShield && e.shield > 0) { c.fillStyle = '#e8edf3'; c.fillRect(x - w / 2, yy - 4, w * e.shield / e.maxShield, 3); }
     lvlBadge(c, x - w / 2 - 3, yy + 2.5, e.lvl, mine, true);
     if (e.kind === 'bone_monarch' && e.souls) { c.fillStyle = '#7affd0'; c.font = 'bold 9px sans-serif'; c.fillText('✦' + e.souls, x + w / 2 + 2, yy + 5); }
+  }
+
+  drawLabels(dt) {
+    const c = this.c;
+    this.labels = this.labels.filter(l => (l.t += dt) < 1.6);
+    for (const l of this.labels) {
+      const mine = l.team === this.viewerTeam;
+      const a = l.t < 0.15 ? l.t / 0.15 : l.t > 1.2 ? 1 - (l.t - 1.2) / 0.4 : 1;
+      const x = clamp(this.sx(l.x), 70, LW - 70), y = this.sy(l.y) - 52 - l.t * 14;
+      c.save(); c.globalAlpha = a;
+      c.font = (mine ? 15 : 17) + 'px "Lilita One", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const w = c.measureText(l.text).width + 18;
+      rrPath(c, x - w / 2, y - 12, w, 24, 10); c.fillStyle = mine ? 'rgba(31,76,153,0.85)' : 'rgba(147,35,31,0.88)'; c.fill();
+      c.strokeStyle = l.asc ? '#e0a0ff' : 'rgba(255,255,255,0.35)'; c.lineWidth = 1.5; c.stroke();
+      c.fillStyle = '#fff'; c.fillText(l.text, x, y + 1);
+      c.restore();
+    }
   }
 
   drawBubbles(S, dt) {
@@ -567,6 +666,18 @@ function hpBar(c, x, y, w, h, frac, mine, num) {
     c.font = '11px "Lilita One", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 3; c.strokeStyle = OUT; c.strokeText(fmtNum(num), x + w / 2, y + h / 2 + 0.5); c.fillStyle = '#fff'; c.fillText(fmtNum(num), x + w / 2, y + h / 2 + 0.5);
   }
+}
+function namePlate(c, x, y, name, mine) {
+  c.save();
+  c.font = '15px "Lilita One", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const w = Math.min(170, c.measureText(name).width + 22);
+  rrPath(c, x - w / 2, y - 11, w, 22, 9); c.fillStyle = mine ? 'rgba(20,48,104,0.9)' : 'rgba(110,24,22,0.9)'; c.fill();
+  c.strokeStyle = mine ? '#7cb6ff' : '#ff8a7a'; c.lineWidth = 1.5; c.stroke();
+  c.lineWidth = 3; c.strokeStyle = OUT;
+  let t = name; while (t.length > 3 && c.measureText(t).width > w - 16) t = t.slice(0, -1);
+  if (t !== name) t += '…';
+  c.strokeText(t, x, y + 1); c.fillStyle = '#ffffff'; c.fillText(t, x, y + 1);
+  c.restore();
 }
 function lvlBadge(c, x, y, lvl, mine, small) {
   const r = small ? 5 : 8;

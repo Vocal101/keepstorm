@@ -150,10 +150,11 @@ const WorldArt = (() => {
     for (let i = 0; i < n; i++) { rr(c, x + i * cw * 2, y - 6, cw, 8, 1.5); fs(c, S.top, 1.2); }
   }
 
-  function drawSideTower(c, tw, T, t, view) {
+  function drawSideTower(c, tw, T, t, view, part) {
     const S = skinStyle(tw.skin, T);
     const w = 70, h = 52;
     c.save();
+    if (part !== 'top') {
     // shadow
     ell(c, 0, 4, 48, 18); c.fillStyle = 'rgba(0,0,0,0.25)'; c.fill();
     // base
@@ -166,13 +167,15 @@ const WorldArt = (() => {
     if (S.style === 'pagoda') {
       c.beginPath(); c.moveTo(-w / 2 - 12, -h - 2); c.quadraticCurveTo(0, -h - 14, w / 2 + 12, -h - 2); c.lineTo(w / 2 + 4, -h - 8); c.quadraticCurveTo(0, -h - 18, -w / 2 - 4, -h - 8); c.closePath(); fs(c, S.roof, 1.4);
     } else crenels(c, -w / 2 - 5, -h - 10, w + 10, S);
+    if (S.style === 'crystal') { for (const [dx, hh] of [[-w / 2, 18], [w / 2 - 4, 14]]) { c.beginPath(); c.moveTo(dx - 3, -h - 4); c.lineTo(dx + 2, -h - 4 - hh); c.lineTo(dx + 7, -h - 4); c.closePath(); fs(c, lg(c, 0, -h - 20, 0, -h, '#ffffff', '#ff7ae0'), 1); } }
+    }
+    if (part === 'base') { c.restore(); return; }
     // banner
     c.save(); c.translate(w / 2 - 2, -h - 14);
     rr(c, -1.2, -26, 2.4, 28, 1); fs(c, '#5a3a22', 1);
     const wave = Math.sin(t * 3 + tw.x) * 2;
     c.beginPath(); c.moveTo(1, -25); c.quadraticCurveTo(10, -25 + wave, 16, -22); c.lineTo(16, -12); c.quadraticCurveTo(10, -14 + wave, 1, -14); c.closePath(); fs(c, T.main, 1.1);
     c.restore();
-    if (S.style === 'crystal') { for (const [dx, hh] of [[-w / 2, 18], [w / 2 - 4, 14]]) { c.beginPath(); c.moveTo(dx - 3, -h - 4); c.lineTo(dx + 2, -h - 4 - hh); c.lineTo(dx + 7, -h - 4); c.closePath(); fs(c, lg(c, 0, -h - 20, 0, -h, '#ffffff', '#ff7ae0'), 1); } }
     // defender
     c.translate(0, -h - 8);
     drawDefender(c, tw, T, t, view);
@@ -200,10 +203,11 @@ const WorldArt = (() => {
     }
   }
 
-  function drawKeep(c, tw, T, t, view) {
+  function drawKeep(c, tw, T, t, view, part) {
     const S = skinStyle(tw.skin, T);
     const w = 100, h = 60;
     c.save();
+    if (part !== 'top') {
     ell(c, 0, 4, 66, 22); c.fillStyle = 'rgba(0,0,0,0.25)'; c.fill();
     // corner turrets
     for (const s of [-1, 1]) {
@@ -221,6 +225,8 @@ const WorldArt = (() => {
     // top deck
     rr(c, -w / 2 + 4, -h - 10, w - 8, 12, 3); fs(c, lg(c, 0, -h - 10, 0, -h + 2, S.top, S.wall2), 1.5);
     crenels(c, -w / 2 + 4, -h - 10, w - 8, S);
+    }
+    if (part === 'base') { c.restore(); return; }
     // keeper with cannon
     c.translate(0, -h - 6);
     const active = tw.active;

@@ -38,6 +38,7 @@ Then open http://localhost:8778.
 ## How to play
 
 - You hold 4 of your 8 cards. Drag a card onto your half of the arena to deploy it, or tap a card and then tap the arena. Each card you play goes to the back of your deck.
+- To see a card's stats mid-battle (hitpoints, damage, range, speed, targets and more), hover over it with the mouse or press and hold it on a touch screen.
 - Ember refills over time, up to 10. Each card shows its Ember cost.
 - Each enemy side tower you knock down earns a banner. Destroying the Keep earns all three.
 - After you take a side tower, you can deploy troops on that side of the enemy's half.
@@ -49,6 +50,7 @@ Then open http://localhost:8778.
 | Action | Mouse / touch | Keyboard |
 | --- | --- | --- |
 | Deploy a card | Drag it onto the arena | `1`–`4` to pick it, then click the arena |
+| Card stats | Hover over a card, or press and hold it | |
 | Hero ability | Tap the round ability button | `Space` or `Q` |
 | Emotes | Tap the face button by your cards | `E` |
 | Cancel | Drag the card back to your hand | `Esc` |

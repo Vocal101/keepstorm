@@ -271,4 +271,39 @@ const FORMATIONS = {
   6: [[-0.9, -0.5], [0, -0.7], [0.9, -0.5], [-0.9, 0.5], [0, 0.7], [0.9, 0.5]],
 };
 
+// Display rows for a card's stats at a given level (used by the card menu and the in-battle info panel)
+function cardStatRows(card, lvl) {
+  const rows = [];
+  const m = levelMul(lvl);
+  const f = v => fmtNum(Math.round(v * m));
+  if (card.type === 'spell') {
+    if (card.dmg) rows.push(['Damage', f(card.dmg)]);
+    if (card.dmg && card.towerMul) rows.push(['Tower damage', f(card.dmg * card.towerMul)]);
+    if (card.r) rows.push(['Radius', card.r + ' tiles']);
+    if (card.dur) rows.push(['Duration', card.dur + 's']);
+    if (card.freeze) rows.push(['Freeze', card.freeze + 's']);
+    if (card.stun) rows.push(['Stun', card.stun + 's']);
+    if (card.spell === 'crate') rows.push(['Spawns', '3 Imps']);
+    if (card.spell === 'haunting') rows.push(['Spawns', card.n + ' Rattlebones']);
+    return rows;
+  }
+  const u = UNITS[card.unit];
+  rows.push(['Hitpoints', f(u.hp) + (u.shield ? ' + ' + f(u.shield) + ' shield' : '')]);
+  if (u.ramp) rows.push(['Damage', u.ramp.map(x => f(x)).join(' → ')]);
+  else if (u.dmg) rows.push(['Damage', f(u.dmg) + (u.splash ? ' (area)' : '')]);
+  if (u.dmg && !u.kamikaze) rows.push(['Hit speed', u.hs + 's']);
+  if (u.dmg && !u.kamikaze && !u.ramp) rows.push(['DPS', f(u.dmg / u.hs)]);
+  if (u.rng) rows.push(['Range', u.rng < 1.3 ? 'Melee' : u.rng + ' tiles']);
+  if (!u.bld) rows.push(['Speed', { slow: 'Slow', med: 'Medium', fast: 'Fast', vfast: 'Very fast' }[u.spd]]);
+  if (u.tgt) rows.push(['Targets', u.tgt === 'bld' ? 'Buildings' : u.tgt === 'all' ? 'Air & Ground' : 'Ground']);
+  if (u.life) rows.push(['Lifetime', u.life + 's']);
+  if (card.count > 1) rows.push(['Count', 'x' + card.count]);
+  if (u.air) rows.push(['Type', 'Flying']);
+  if (u.spawner) rows.push(['Spawns', UNITS[u.spawner.u].name + ' every ' + u.spawner.every + 's']);
+  if (u.deathSpawn) rows.push(['On death', u.deathSpawn.n + ' ' + UNITS[u.deathSpawn.u].name + (u.deathSpawn.n > 1 ? 's' : '')]);
+  if (u.deathBomb) rows.push(['Death damage', f(u.deathBomb.dmg)]);
+  if (u.generate) rows.push(['Ember', '+1 every ' + u.generate + 's']);
+  return rows;
+}
+
 if (typeof module !== 'undefined') module.exports = { UNITS, CARDS, CARD };
